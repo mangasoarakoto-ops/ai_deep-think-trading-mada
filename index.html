@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="mg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Intelligent Mada V3.5</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+
+    <div id="login-page">
+        <div class="login-box">
+            <div class="logo-area">
+                <h1>🤖 AI INTELLIGENT</h1>
+                <p>MADA TRADING V3.5 (Deep Think)</p>
+            </div>
+            
+            <h2>🔐 Deriv API Connection</h2>
+            <p>Ampidiro ny Token mba hiasa ny Bot</p>
+            <input type="text" id="api-token" placeholder="Paste Token Here...">
+            
+            <button onclick="checkUserAndLogin()" class="btn-primary">HIDITRA (CONNECT)</button>
+            
+            <a href="https://wa.me/261323911654?text=Salama%2C%20mila%20fanampiana%20amin'ny%20API%20Token%20aho" target="_blank" class="whatsapp-btn">
+                <i class="fab fa-whatsapp"></i> Mila fanampiana? (WhatsApp)
+            </a>
+        </div>
+    </div>
+
+    <div id="payment-lock" class="modal hidden">
+        <div class="modal-content">
+            <h3>⚠️ Tapitra ny andrana (2 Jours)</h3>
+            <p>Mila manao abonnement ianao vao afaka manohy.</p>
+            <div class="price-tag">10.000 Ar / Mois</div>
+            
+            <p><strong>Alefaso amin'ny iray amin'ireto ny vola:</strong></p>
+            <ul class="payment-numbers">
+                <li>032 39 116 54 (RAVELOMANANTSOA U.)</li>
+                <li>038 22 668 76 (Marie Christiana)</li>
+            </ul>
+
+            <label>Ampidiro ny Reference:</label>
+            <input type="text" id="payment-ref" placeholder="Ex: Ref 12345">
+            <button onclick="submitPayment()" class="btn-primary">HAMAFIZY (VERIFY)</button>
+        </div>
+    </div>
+
+    <div id="win-modal" class="modal hidden">
+        <div class="modal-content win-content">
+            <i class="fas fa-trophy win-icon"></i>
+            <h3>ARAHABA RITRO!</h3>
+            <p id="win-message"></p>
+            <button onclick="closeWinModal()" class="btn-primary">OK - Ekeo ny tombony</button>
+        </div>
+    </div>
+
+    <div id="main-app" class="hidden">
+        
+        <header>
+            <div class="logo">🤖 AI MADA</div>
+            <div class="balance-info">
+                <div class="solde-label">Solde:</div>
+                <div id="balance-display" class="solde-value">Loading...</div>
+            </div>
+        </header>
+
+        <div class="content-container">
+            
+            <div id="section-trading" class="tab-content active">
+                
+                <div class="status-bar">
+                    <div class="status-left">
+                        <span id="ai-status">😴 AI: Matory</span>
+                        <div id="current-strategy-badge" class="strat-badge">Aucune</div>
+                    </div>
+                </div>
+
+                <div class="chart-box">
+                    <canvas id="tradingChart"></canvas>
+                    <div id="scan-line" class="hidden"></div>
+                    <div id="decision-overlay" class="hidden">ANALYZING...</div>
+                </div>
+
+                <div class="control-panel">
+                    <button id="start-btn" onclick="startBot()" class="btn-start">
+                        <i class="fas fa-play"></i> START AI
+                    </button>
+                    <button id="stop-btn" onclick="stopBot()" class="btn-stop" disabled>
+                        <i class="fas fa-stop"></i> STOP
+                    </button>
+                </div>
+
+                <div class="logs-container">
+                    <div class="logs-header">📋 AI Thought Process (Logs)</div>
+                    <ul id="log-list"></ul>
+                </div>
+            </div>
+
+            <div id="section-history" class="tab-content">
+                <h3>📜 Transactions</h3>
+                <div class="history-stats">
+                    <span>Total P/L: <b id="total-pl-display">0.00</b> $</span>
+                </div>
+                <ul id="history-list"></ul>
+            </div>
+
+            <div id="section-settings" class="tab-content">
+                <h3>⚙️ Configuration</h3>
+                <div class="input-group">
+                    <label>Mise de base ($) - Martingale active</label>
+                    <input type="number" id="stake-input" value="1" max="10" step="0.5">
+                </div>
+                <div class="input-group">
+                    <label>Target Profit ($)</label>
+                    <input type="number" id="target-profit" value="10">
+                </div>
+                <div class="input-group">
+                    <label>Stop Loss ($)</label>
+                    <input type="number" id="stop-loss" value="20">
+                </div>
+                <p class="note">⚠️ Ny AI dia mampitombo ny mise x2 ho azy raha misy fatiantoka mba hamerenana ny vola.</p>
+            </div>
+
+        </div>
+
+        <nav class="bottom-nav">
+            <button onclick="switchTab('section-trading')" class="active">
+                <i class="fas fa-robot"></i> Trading
+            </button>
+            <button onclick="switchTab('section-history')">
+                <i class="fas fa-history"></i> Historique
+            </button>
+            <button onclick="switchTab('section-settings')">
+                <i class="fas fa-sliders-h"></i> Paramètres
+            </button>
+        </nav>
+    </div>
+
+    <audio id="sound-win" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg"></audio>
+    <audio id="sound-loss" src="https://actions.google.com/sounds/v1/cartoon/thud_dive.ogg"></audio>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module" src="script.js"></script>
+</body>
+</html>
