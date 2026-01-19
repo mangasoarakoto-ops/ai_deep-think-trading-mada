@@ -40,7 +40,7 @@ label { font-size: 14px; color: #8b949e; font-weight: bold; }
 #scan-line {
     position: absolute; top: 0; left: 0; width: 3px; height: 100%;
     background: rgba(88, 166, 255, 0.6); box-shadow: 0 0 15px #58a6ff;
-    animation: scan 1.5s infinite ease-in-out; z-index: 10;
+    animation: scan 1.0s infinite ease-in-out; z-index: 10;
 }
 @keyframes scan { 0% { left: -10%; } 100% { left: 110%; } }
 
@@ -69,11 +69,8 @@ label { font-size: 14px; color: #8b949e; font-weight: bold; }
 }
 .logs-header { background: #30363d; padding: 5px; font-size: 11px; text-transform: uppercase; font-weight: bold; }
 #log-list li { padding: 4px 8px; border-bottom: 1px solid #161b22; color: #c9d1d9; }
-.log-warn { color: #d29922; }
-.log-success { color: #3fb950; }
-.log-err { color: #f85149; }
 
-/* History Badge */
+/* History Styled */
 #history-list { list-style: none; padding: 0; }
 #history-list li {
     background: #161b22; margin-bottom: 8px; padding: 10px; border-radius: 6px;
@@ -82,14 +79,18 @@ label { font-size: 14px; color: #8b949e; font-weight: bold; }
 #history-list li.win { border-left-color: #3fb950; }
 #history-list li.loss { border-left-color: #f85149; }
 
-.history-info { display: flex; flex-direction: column; }
-.history-strat { font-size: 10px; color: #8b949e; }
-.history-amount { font-weight: bold; font-size: 14px; }
+.history-left { display: flex; flex-direction: column; }
+.history-right { display: flex; flex-direction: column; align-items: flex-end; }
+.history-strat { font-size: 11px; font-weight: bold; color: #c9d1d9; }
+.history-time { font-size: 10px; color: #8b949e; margin-top: 2px; }
+.history-amount { font-weight: bold; font-size: 14px; margin-bottom: 2px; }
+
+/* Badges */
 .badge {
-    padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;
+    padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; text-transform: uppercase;
 }
-.badge-win { background: rgba(63, 185, 80, 0.2); color: #3fb950; }
-.badge-loss { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+.badge-win { background: rgba(63, 185, 80, 0.2); color: #3fb950; border: 1px solid rgba(63, 185, 80, 0.4); }
+.badge-loss { background: rgba(248, 81, 73, 0.2); color: #f85149; border: 1px solid rgba(248, 81, 73, 0.4); }
 
 /* Bottom Nav */
 .bottom-nav {
