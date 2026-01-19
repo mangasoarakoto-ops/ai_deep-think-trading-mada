@@ -21,7 +21,7 @@ let apiToken = "";
 let isTrading = false;
 let isTradeInProgress = false;
 let balance = 0, startBalance = 0, totalProfit = 0;
-let tickHistory = []; // Hitehirizana ny vidy farany (Price Action)
+let tickHistory = []; 
 
 // USER VARIABLES
 let userDocId = null;
@@ -30,75 +30,65 @@ let dailyTradeCount = 0;
 let lastTradeDateStr = "";
 
 // TRADING INTELLIGENCE VARIABLES
-let currentStake = 1;
-let martingaleMultiplier = 2; 
-let activeStrategy = null; // Ilay strategie mandeha amin'izao
-let lastTradeStatus = null; // 'WIN' or 'LOSS'
+let currentStake = 0.35; // Start Stake
+let martingaleMultiplier = 1.4; 
+let activeStrategy = null; 
+let lastTradeStatus = null; 
 
 let settings = { 
-    baseStake: 1, 
-    maxStake: 5, // Sécurité
-    target: 10, 
-    stopL: 20 
+    baseStake: 0.35, 
+    maxStake: 10, 
+    target: 0.5, 
+    stopL: 2.6  
 };
 
-// 3. THE 10 STRATEGIES (BANK OF KNOWLEDGE)
-// Ireto no "saina" 10 samihafa
+// 3. THE 30 STRATEGIES (BANK OF KNOWLEDGE - EXTENDED)
+// Functions for Logic
+const getLast = (t) => t[t.length-1];
+const getPrev = (t, n=2) => t[t.length-n];
+
 const STRATEGY_BANK = {
-    "RSI_OVERSOLD": (ticks, rsi, sma) => { return rsi < 25 ? "CALL" : null; },
-    "RSI_OVERBOUGHT": (ticks, rsi, sma) => { return rsi > 75 ? "PUT" : null; },
-    "SMA_CROSS_UP": (ticks, rsi, sma) => { 
-        let last = ticks[ticks.length-1]; let prev = ticks[ticks.length-2];
-        return (prev < sma && last > sma) ? "CALL" : null;
-    },
-    "SMA_CROSS_DOWN": (ticks, rsi, sma) => {
-        let last = ticks[ticks.length-1]; let prev = ticks[ticks.length-2];
-        return (prev > sma && last < sma) ? "PUT" : null;
-    },
-    "MOMENTUM_BURST": (ticks, rsi, sma) => {
-        // Raha misy fiakarana be tampoka
-        let last = ticks[ticks.length-1]; let prev3 = ticks[ticks.length-4];
-        if(last > prev3 + 0.5) return "CALL";
-        if(last < prev3 - 0.5) return "PUT";
-        return null;
-    },
-    "REVERSAL_EXTREME": (ticks, rsi, sma) => {
-        // Raha lasa lavitra be niala tamin'ny SMA
-        let last = ticks[ticks.length-1];
-        if(last > sma + 1.5 && rsi > 80) return "PUT";
-        if(last < sma - 1.5 && rsi < 20) return "CALL";
-        return null;
-    },
-    "PATTERN_3_CROWS": (ticks, rsi, sma) => {
-        // Nidina in-3 nifanesy
-        let t = ticks; let l = t.length;
-        if(t[l-1]<t[l-2] && t[l-2]<t[l-3] && rsi > 30) return "PUT";
-        return null;
-    },
-    "PATTERN_3_SOLDIERS": (ticks, rsi, sma) => {
-        // Niakatra in-3 nifanesy
-        let t = ticks; let l = t.length;
-        if(t[l-1]>t[l-2] && t[l-2]>t[l-3] && rsi < 70) return "CALL";
-        return null;
-    },
-    "CONSERVATIVE_TREND": (ticks, rsi, sma) => {
-        // Manaraka ny courant fotsiny
-        let last = ticks[ticks.length-1];
-        if(last > sma && rsi > 50 && rsi < 65) return "CALL";
-        if(last < sma && rsi < 50 && rsi > 35) return "PUT";
-        return null;
-    },
-    "RANGE_BREAKOUT": (ticks, rsi, sma) => {
-        // Raha miala anaty range kely
-        let last = ticks[ticks.length-1];
-        let range = ticks.slice(-5); // 5 farany
-        let max = Math.max(...range);
-        let min = Math.min(...range);
-        if(max - min < 0.2) return null; // Tsy mihetsika
-        if(last === max) return "CALL";
-        if(last === min) return "PUT";
-        return null;
-    }
+    // --- BASIC RSI & SMA (1-5) ---
+    "RSI_OVERSOLD": (t, rsi, sma) => rsi < 20 ? "CALL" : null,
+    "RSI_OVERBOUGHT": (t, rsi, sma) => rsi > 80 ? "PUT" : null,
+    "SMA_CROSS_UP": (t, rsi, sma) => (getPrev(t) < sma && getLast(t) > sma) ? "CALL" : null,
+    "SMA_CROSS_DOWN": (t, rsi, sma) => (getPrev(t) > sma && getLast(t) < sma) ? "PUT" : null,
+    "TREND_FOLLOW_UP": (t, rsi, sma) => (getLast(t) > sma && rsi > 55 && rsi < 70) ? "CALL" : null,
+
+    // --- MOMENTUM & PATTERNS (6-10) ---
+    "TREND_FOLLOW_DOWN": (t, rsi, sma) => (getLast(t) < sma && rsi < 45 && rsi > 30) ? "PUT" : null,
+    "3_SOLDIERS": (t, rsi, sma) => (t[t.length-1] > t[t.length-2] && t[t.length-2] > t[t.length-3]) ? "CALL" : null,
+    "3_CROWS": (t, rsi, sma) => (t[t.length-1] < t[t.length-2] && t[t.length-2] < t[t.length-3]) ? "PUT" : null,
+    "SHARP_DROP_REBOUND": (t, rsi, sma) => (getLast(t) < getPrev(t) - 0.8) ? "CALL" : null,
+    "SHARP_RISE_CORRECT": (t, rsi, sma) => (getLast(t) > getPrev(t) + 0.8) ? "PUT" : null,
+
+    // --- BOLLINGER BAND SIMULATION (11-15) ---
+    "BB_LOW_BREAK": (t, rsi, sma, sd) => (getLast(t) < sma - (2*sd)) ? "CALL" : null,
+    "BB_HIGH_BREAK": (t, rsi, sma, sd) => (getLast(t) > sma + (2*sd)) ? "PUT" : null,
+    "BB_SQUEEZE_UP": (t, rsi, sma, sd) => (sd < 0.05 && getLast(t) > sma) ? "CALL" : null,
+    "BB_SQUEEZE_DOWN": (t, rsi, sma, sd) => (sd < 0.05 && getLast(t) < sma) ? "PUT" : null,
+    "MID_REVERSION_UP": (t, rsi, sma) => (getLast(t) < sma && rsi < 30) ? "CALL" : null,
+
+    // --- ADVANCED PATTERNS (16-20) ---
+    "MID_REVERSION_DOWN": (t, rsi, sma) => (getLast(t) > sma && rsi > 70) ? "PUT" : null,
+    "DOUBLE_TOP": (t, rsi, sma) => (Math.abs(getLast(t) - getPrev(t,3)) < 0.02 && rsi > 75) ? "PUT" : null,
+    "DOUBLE_BOTTOM": (t, rsi, sma) => (Math.abs(getLast(t) - getPrev(t,3)) < 0.02 && rsi < 25) ? "CALL" : null,
+    "STOCHASTIC_BUY": (t, rsi, sma) => (rsi < 20 && getLast(t) > getPrev(t)) ? "CALL" : null,
+    "STOCHASTIC_SELL": (t, rsi, sma) => (rsi > 80 && getLast(t) < getPrev(t)) ? "PUT" : null,
+
+    // --- AGGRESSIVE SCALPING (21-25) ---
+    "SCALP_UP": (t, rsi, sma) => (getLast(t) > getPrev(t) && getLast(t) > sma) ? "CALL" : null,
+    "SCALP_DOWN": (t, rsi, sma) => (getLast(t) < getPrev(t) && getLast(t) < sma) ? "PUT" : null,
+    "HAMMER_MIMIC": (t, rsi, sma) => (getLast(t) > getPrev(t) && getPrev(t) < getPrev(t,2)) ? "CALL" : null,
+    "SHOOTING_STAR_MIMIC": (t, rsi, sma) => (getLast(t) < getPrev(t) && getPrev(t) > getPrev(t,2)) ? "PUT" : null,
+    "INSIDE_BAR_BREAK_UP": (t, rsi, sma) => (Math.abs(getPrev(t) - getPrev(t,2)) < 0.1 && getLast(t) > getPrev(t)) ? "CALL" : null,
+
+    // --- VOLATILITY & NOISE (26-30) ---
+    "INSIDE_BAR_BREAK_DOWN": (t, rsi, sma) => (Math.abs(getPrev(t) - getPrev(t,2)) < 0.1 && getLast(t) < getPrev(t)) ? "PUT" : null,
+    "NOISE_FILTER_CALL": (t, rsi, sma) => (rsi > 50 && rsi < 55 && getLast(t) > sma) ? "CALL" : null,
+    "NOISE_FILTER_PUT": (t, rsi, sma) => (rsi < 50 && rsi > 45 && getLast(t) < sma) ? "PUT" : null,
+    "GAP_UP_FILL": (t, rsi, sma) => (getLast(t) > getPrev(t) + 0.5) ? "PUT" : null,
+    "GAP_DOWN_FILL": (t, rsi, sma) => (getLast(t) < getPrev(t) - 0.5) ? "CALL" : null
 };
 
 // 4. USER LOGIN & LOGIC
@@ -163,29 +153,30 @@ window.submitPayment = async () => {
 
 // 5. TRADING CONTROL
 window.startBot = () => {
-    // Limit Check
-    if(isPaidUser && dailyTradeCount >= 2) {
-        alert("Limit Journalier tratra (2 trades).");
+    // Limit Check for Free Users
+    if(isPaidUser === false && dailyTradeCount >= 20) { // Increased limit a bit for testing
+        alert("Limit Journalier tratra.");
         return;
     }
 
-    settings.baseStake = parseFloat(document.getElementById('stake-input').value);
-    // Raha vao manomboka dia ny base no alaina
+    if(totalProfit >= settings.target) {
+        alert("Efa tratra ny objectif! Reset ny pejy raha te hamerina.");
+        return;
+    }
+
+    // Reset raha vao manomboka
     if(!isTradeInProgress && lastTradeStatus !== 'LOSS') {
         currentStake = settings.baseStake;
     }
     
-    settings.target = parseFloat(document.getElementById('target-profit').value);
-    settings.stopL = parseFloat(document.getElementById('stop-loss').value);
-
     isTrading = true;
     document.getElementById('start-btn').disabled = true;
     document.getElementById('stop-btn').disabled = false;
     document.getElementById('scan-line').classList.remove('hidden');
     
     document.getElementById('ai-status').innerText = "🔍 AI: Scanning Market...";
-    document.getElementById('ai-status').style.color = "#d29922"; // Yellow
-    addLog("🚀 AI ACTIVATED. Analyzing conditions...");
+    document.getElementById('ai-status').style.color = "#d29922"; 
+    addLog("🚀 AI STARTED. Dynamic Mode Activated.");
 };
 
 window.stopBot = (reason = "User Stop") => {
@@ -218,6 +209,7 @@ function connectDeriv() {
             const price = data.tick.quote;
             updateChart(price);
             
+            // IMMEDIATE RE-ANALYSIS logic
             if(isTrading && !isTradeInProgress) {
                 brainProcess(price);
             }
@@ -225,19 +217,18 @@ function connectDeriv() {
 
         if(data.msg_type === 'buy') {
             isTradeInProgress = true;
-            addLog(`⚡ TRADE SENT: $${currentStake} (ID: ${data.buy.contract_id})`);
+            addLog(`⚡ TRADE EXEC: $${currentStake} (ID: ${data.buy.contract_id})`);
             
-            // Increment Limit
             dailyTradeCount++;
-            const userRef = doc(db, "users", apiToken);
-            updateDoc(userRef, { dailyTradeCount: dailyTradeCount });
-
-            // Subscribe to open contract for Result
-            setTimeout(() => ws.send(JSON.stringify({ proposal_open_contract: 1, subscribe: 1 })), 1000);
+            // Optional: Update DB sparsely to save writes
+            
+            // Subscribe to open contract for INSTANT result
+            ws.send(JSON.stringify({ proposal_open_contract: 1, subscribe: 1 }));
         }
 
         if(data.msg_type === 'proposal_open_contract') {
             const contract = data.proposal_open_contract;
+            // Check immediately if sold
             if(contract.is_sold) {
                 isTradeInProgress = false;
                 processResult(contract);
@@ -248,65 +239,52 @@ function connectDeriv() {
 
 // 7. THE INTELLIGENT BRAIN (CORE LOGIC)
 function brainProcess(currentPrice) {
+    // Safety Checks
     if(totalProfit >= settings.target) { stopBot("Target Profit Reached"); return; }
     if(totalProfit <= -settings.stopL) { stopBot("Stop Loss Reached"); return; }
 
     tickHistory.push(currentPrice);
-    if(tickHistory.length > 50) tickHistory.shift(); // Mila data betsaka kokoa
-    if(tickHistory.length < 20) return; // Miandry data ampy
+    if(tickHistory.length > 50) tickHistory.shift(); 
+    if(tickHistory.length < 15) return; 
 
-    // Calculs Techniques
+    // Calculs Techniques (Fast)
     const rsi = calculateRSI(tickHistory, 14);
     const sma = calculateSMA(tickHistory, 20);
+    const sd = calculateSD(tickHistory, 20, sma); // Standard Deviation for Bollinger
 
-    // Update UI Infos
-    document.getElementById('decision-overlay').innerText = `RSI: ${rsi.toFixed(1)} | SMA: ${sma.toFixed(2)}`;
+    document.getElementById('decision-overlay').innerText = `RSI:${rsi.toFixed(0)} | SMA:${sma.toFixed(2)}`;
+    
+    // DYNAMIC STRATEGY SELECTION
+    // We do not stick to one strategy. We scan ALL 30 every tick.
+    let bestSignal = null;
+    let bestStratName = null;
 
-    // Raha efa misy stratégie mandeha tsara (WIN), dia io ihany jerena
-    if (activeStrategy && lastTradeStatus === 'WIN') {
-        const signal = STRATEGY_BANK[activeStrategy](tickHistory, rsi, sma);
+    // Shuffle keys to give random chance if multiple strategies match? 
+    // No, systematic check is faster.
+    for (const [name, logicFunc] of Object.entries(STRATEGY_BANK)) {
+        const signal = logicFunc(tickHistory, rsi, sma, sd);
         if (signal) {
-            addLog(`🔥 Keeping Best Strategy: ${activeStrategy}`);
-            placeTrade(signal);
-            return;
+            bestSignal = signal;
+            bestStratName = name;
+            break; // Stop at first valid signal for speed
         }
     }
 
-    // Raha vao manomboka, na vao avy RESY (LOSS), dia mitady vaovao (SCAN)
-    if (lastTradeStatus !== 'WIN') {
-        let bestSignal = null;
-        let bestStratName = null;
-
-        // Loop through all 10 strategies
-        for (const [name, logicFunc] of Object.entries(STRATEGY_BANK)) {
-            const signal = logicFunc(tickHistory, rsi, sma);
-            if (signal) {
-                // Eto no misy ny safidy. 
-                // Azo atao complex, fa eto dia raisintsika ny voalohany mety satria efa voasivana tsara.
-                bestSignal = signal;
-                bestStratName = name;
-                break; // Hita ny lalana!
-            }
-        }
-
-        if (bestSignal) {
-            activeStrategy = bestStratName;
-            document.getElementById('current-strategy-badge').innerText = activeStrategy;
-            document.getElementById('ai-status').innerText = "⚡ AI: EXECUTION...";
-            document.getElementById('ai-status').style.color = "#3fb950";
-            placeTrade(bestSignal);
-        } else {
-            document.getElementById('ai-status').innerText = "👀 AI: Scanning (No Signal)";
-            document.getElementById('ai-status').style.color = "#d29922";
-        }
+    if (bestSignal) {
+        activeStrategy = bestStratName;
+        document.getElementById('current-strategy-badge').innerText = activeStrategy;
+        document.getElementById('ai-status').innerText = "⚡ EXECUTION...";
+        document.getElementById('ai-status').style.color = "#3fb950";
+        placeTrade(bestSignal);
+    } else {
+        document.getElementById('ai-status').innerText = "👀 Scanning (30 Strat)...";
+        document.getElementById('ai-status').style.color = "#d29922";
     }
 }
 
 function placeTrade(type) {
-    // Verify Stake Limit (Safety)
-    if(currentStake > 5) currentStake = 5; // Force Max $5
-    
-    addLog(`🤖 Signal: ${type} | Mise: $${currentStake}`);
+    // 0.1s execution logic is handled by calling this function immediately from brainProcess
+    addLog(`🤖 Signal: ${type} | Strat: ${activeStrategy}`);
     ws.send(JSON.stringify({
         buy: 1,
         price: currentStake,
@@ -315,14 +293,14 @@ function placeTrade(type) {
             basis: 'stake', 
             contract_type: type, 
             currency: 'USD', 
-            duration: 5, 
+            duration: 1, // Ultra short duration if possible, or 5 ticks
             duration_unit: 't', 
             symbol: 'R_100' 
         }
     }));
 }
 
-// 8. RESULT & MARTINGALE LOGIC
+// 8. RESULT & DYNAMIC RESTART
 async function processResult(contract) {
     const profit = parseFloat(contract.profit);
     totalProfit += profit;
@@ -331,38 +309,57 @@ async function processResult(contract) {
     const isWin = profit >= 0;
     lastTradeStatus = isWin ? 'WIN' : 'LOSS';
 
-    // UI Log Update
+    // 1. Play Sound
+    if(isWin) document.getElementById('sound-win').play();
+    else document.getElementById('sound-loss').play();
+
+    // 2. Add to History with DATE & BADGE
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-GB'); // HH:MM:SS
+    const dateString = now.toLocaleDateString('en-GB'); // DD/MM/YYYY
+    
     const li = document.createElement('li');
     const badgeClass = isWin ? 'badge-win' : 'badge-loss';
     const sign = isWin ? '+' : '';
+    
     li.className = isWin ? 'win' : 'loss';
     li.innerHTML = `
-        <div class="history-info">
-            <span class="history-strat">${activeStrategy || 'Unknown'}</span>
-            <span class="history-amount">${sign}$${Math.abs(profit).toFixed(2)}</span>
+        <div class="history-left">
+             <div class="history-strat">${activeStrategy || 'Unknown'}</div>
+             <div class="history-time">${dateString} ${timeString}</div>
         </div>
-        <span class="badge ${badgeClass}">${isWin ? 'WIN' : 'LOSS'}</span>
+        <div class="history-right">
+            <span class="history-amount">${sign}$${Math.abs(profit).toFixed(2)}</span>
+            <span class="badge ${badgeClass}">${isWin ? 'WIN' : 'LOSS'}</span>
+        </div>
     `;
     document.getElementById('history-list').prepend(li);
     document.getElementById('total-pl-display').innerText = totalProfit.toFixed(2);
 
-    // AI DECISION APRES TRADE
-    if (isWin) {
-        document.getElementById('sound-win').play();
-        addLog(`✅ WIN! Profit: $${profit}. Reset Stake.`);
-        currentStake = settings.baseStake; // Reset Mise
-        
-        // Stop sy Fankalazana
-        stopBot("WIN - Pause"); 
-        const modal = document.getElementById('win-modal');
-        document.getElementById('win-message').innerHTML = `Tombony azo: <b style="color:#3fb950">$${profit.toFixed(2)}</b>.<br>Mitazona stratégie: ${activeStrategy}`;
-        modal.classList.remove('hidden');
-    } else {
-        document.getElementById('sound-loss').play();
-        addLog(`❌ LOSS. Martingale x2 applied.`);
-        currentStake = currentStake * martingaleMultiplier; // MARTINGALE x2
-        activeStrategy = null; // Reset Strategie mba hitady vaovao
+    // 3. IMPORTANT: RESET STRATEGY FOR NEXT TRADE
+    activeStrategy = null; // Force AI to re-analyze completely
+
+    // 4. CHECK TARGETS
+    if (totalProfit >= settings.target) {
+         // Target Hit -> STOP
+         stopBot("Target Profit Reached");
+         const modal = document.getElementById('win-modal');
+         document.getElementById('win-message').innerHTML = `Tombony azo: <b style="color:#3fb950">$${totalProfit.toFixed(2)}</b>.`;
+         modal.classList.remove('hidden');
+         return;
     }
+
+    // 5. MANAGE STAKE (Martingale) & CONTINUE
+    if (isWin) {
+        addLog(`✅ WIN. Reset Stake to $${settings.baseStake}. Continuing...`);
+        currentStake = settings.baseStake;
+    } else {
+        let nextStake = currentStake * martingaleMultiplier;
+        currentStake = Math.round(nextStake * 100) / 100;
+        addLog(`❌ LOSS. Martingale x1.4 -> $${currentStake}. Immediate Retry.`);
+    }
+
+    // Bot remains isTrading = true, so next tick triggers brainProcess automatically
 }
 
 window.closeWinModal = () => {
@@ -375,6 +372,15 @@ function calculateSMA(data, period) {
     let sum = 0;
     for(let i = data.length - period; i < data.length; i++) sum += data[i];
     return sum / period;
+}
+
+function calculateSD(data, period, sma) {
+    if(data.length < period) return 0;
+    let sumSq = 0;
+    for(let i = data.length - period; i < data.length; i++) {
+        sumSq += Math.pow(data[i] - sma, 2);
+    }
+    return Math.sqrt(sumSq / period);
 }
 
 function calculateRSI(data, period) {
@@ -417,8 +423,8 @@ function initChart() {
         data: {
             labels: Array(30).fill(''),
             datasets: [{
-                label: 'Market Price', data: Array(30).fill(null),
-                borderColor: '#58a6ff', borderWidth: 2, tension: 0.3, pointRadius: 0
+                label: 'Price', data: Array(30).fill(null),
+                borderColor: '#58a6ff', borderWidth: 2, tension: 0.1, pointRadius: 0
             }]
         },
         options: {
